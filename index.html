@@ -96,6 +96,14 @@ section{display:none}section.on{display:block}
 .who{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:15px}
 .who button{border:0;background:none;color:var(--mute);font-size:18px;cursor:pointer;padding:4px 8px}
 .warn{margin:4px 0;font-size:13px;color:#b45309}.free{margin:2px 0;font-size:14px;color:var(--mute)}
+
+.gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.gal img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:var(--line);cursor:pointer;display:block}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:20;display:none;flex-direction:column;align-items:center;justify-content:center;padding:env(safe-area-inset-top,0px) 8px env(safe-area-inset-bottom,0px)}
+#lb.on{display:flex}
+#lb img{max-width:100%;max-height:76%;object-fit:contain}
+#lb .bar{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center}
+#lb button,#lb a{padding:10px 16px;border-radius:12px;border:0;background:rgba(255,255,255,.18);color:#fff;font:inherit;font-size:14px;text-decoration:none;cursor:pointer}
 </style>
 </head>
 <body>
@@ -139,8 +147,18 @@ section{display:none}section.on{display:block}
     <p class="note" id="rMsg" role="status"></p>
   </div>
   <div class="btns"><button class="btn alt" id="rWa">📤 Per WhatsApp senden</button><button class="btn alt" id="rCopy">📋 Liste kopieren</button></div>
-  <p class="note">Hinweis: Eintragungen werden nur auf diesem Gerät gespeichert. Damit Harry und Thomas sie sehen, sende sie per WhatsApp.</p>
+  <p class="note" id="rNote"></p>
+  <p class="note" id="rSync"></p>
   <div id="rList"></div>
+</section>
+<section id="s-photo">
+  <h2>Fotos</h2>
+  <div class="card"><p style="margin:0 0 8px">Lade deine Fotos von der Freizeit hoch, alle können sie hier ansehen.</p>
+  <input type="file" id="pFile" accept="image/*" multiple hidden>
+  <button class="btn" id="pBtn">📷 Fotos hochladen</button>
+  <button class="btn alt" id="pView" hidden style="margin-top:8px">🖼️ Alle Fotos ansehen</button>
+  <p class="note" id="pMsg" role="status"></p></div>
+  <div class="gal" id="pGal"></div>
 </section>
 </div>
 
@@ -148,8 +166,10 @@ section{display:none}section.on{display:block}
   <button data-t="prog" aria-current="true"><i>🗓️</i>Programm</button>
   <button data-t="info"><i>ℹ️</i>Infos</button>
   <button data-t="room"><i>🛏️</i>Zimmer</button>
+  <button data-t="photo"><i>📷</i>Fotos</button>
   <button data-t="qa"><i>💬</i>Q&amp;A</button>
 </div></nav>
+<div id="lb"><img id="lbImg" alt="" referrerpolicy="no-referrer"><div class="bar"><button id="lbPrev" aria-label="Zurück">‹</button><a id="lbOpen" target="_blank" rel="noopener">⬇️ Speichern</a><button id="lbDel">🗑️ Entfernen</button><button id="lbNext" aria-label="Weiter">›</button><button id="lbX">✕ Schließen</button></div></div>
 
 <script>
 // ===== Hier Inhalte anpassen =====
@@ -210,11 +230,13 @@ function faq(){
 }
 $("#q").oninput=faq;faq();
 
-const ROOMS=["Zimmer 1","Zimmer 2","Zimmer 3","Zimmer 4","Zimmer 5","Zimmer 6","Zimmer 7","Zimmer 8"],MAX=6;
+const API="";   // Web-App-Adresse von Google Apps Script (endet auf /exec)
+const ROOMS=["Zimmer 1","Zimmer 2","Zimmer 3","Zimmer 4","Zimmer 5","Zimmer 6","Zimmer 7","Zimmer 8"],MAX=6,REMOTE=!!API;
 let people=[],sex="";
-try{people=JSON.parse(localStorage.getItem("fz_beds")||"[]")}catch(_){}
-const save=()=>{try{localStorage.setItem("fz_beds",JSON.stringify(people))}catch(_){}};
+if(!REMOTE){try{people=JSON.parse(localStorage.getItem("fz_beds")||"[]")}catch(_){}}
+const save=()=>{if(!REMOTE){try{localStorage.setItem("fz_beds",JSON.stringify(people))}catch(_){}}};
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+$("#rNote").textContent=REMOTE?"Die Zimmerliste wird für alle gemeinsam gespeichert. Entfernen können nur Harry und Thomas.":"Hinweis: Eintragungen werden nur auf diesem Gerät gespeichert. Damit Harry und Thomas sie sehen, sende sie per WhatsApp.";
 function rooms(){
   const sel=$("#rRoom"),cur=sel.value;
   sel.innerHTML='<option value="">Zimmer wählen …</option>'+ROOMS.map((r,i)=>{const n=people.filter(p=>p.room===i).length;return `<option value="${i}"${n>=MAX?" disabled":""}>${r} (${n}/${MAX} belegt${n>=MAX?", voll":""})</option>`}).join("");
@@ -222,12 +244,23 @@ function rooms(){
   $("#rList").innerHTML=ROOMS.map((r,i)=>{
     const ps=people.filter(p=>p.room===i),g=ps.some(p=>p.sex==="m"),b=ps.some(p=>p.sex==="j");
     const beds=Array.from({length:MAX},(_,k)=>{const p=ps[k];return `<span class="bed ${p?(p.sex==="m"?"g":"b"):""}"></span>`}).join("");
-    const who=ps.map(p=>`<div class="who"><span>${p.sex==="m"?"👧":"👦"} ${esc(p.name)}, ${p.age} J.</span><button data-del="${p.id}" aria-label="Entfernen">✕</button></div>`).join("");
+    const who=ps.map(p=>`<div class="who"><span>${p.sex==="m"?"👧":"👦"} ${esc(p.name)}, ${p.age} J.</span><button data-del="${esc(p.id)}" aria-label="Entfernen">✕</button></div>`).join("");
     return `<div class="card"><div class="rh"><b>${r}</b><span>${ps.length}/${MAX}</span></div><div class="beds">${beds}</div>${g&&b?'<p class="warn">⚠️ Gemischt belegt, bitte mit Harry und Thomas abstimmen.</p>':""}${who||'<p class="free">Noch frei</p>'}</div>`}).join("");
+}
+async function load(){
+  if(!REMOTE)return;
+  try{
+    const d=await (await fetch(API)).json();
+    if(d.ok){people=d.people;rooms();$("#rSync").textContent="Zuletzt aktualisiert: "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}
+  }catch(_){$("#rSync").textContent="Keine Verbindung zum Server."}
+}
+async function post(body){
+  const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)});
+  return r.json();
 }
 function pick(v){sex=v;$("#sexM").setAttribute("aria-pressed",v==="m");$("#sexJ").setAttribute("aria-pressed",v==="j")}
 $("#sexM").onclick=()=>pick("m");$("#sexJ").onclick=()=>pick("j");
-$("#rAdd").onclick=()=>{
+$("#rAdd").onclick=async()=>{
   const name=$("#rName").value.trim(),age=parseInt($("#rAge").value,10),room=$("#rRoom").value,msg=$("#rMsg");
   if(!name){msg.textContent="Bitte gib einen Namen ein.";return}
   if(!(age>=0&&age<=99)){msg.textContent="Bitte gib ein gültiges Alter ein.";return}
@@ -235,16 +268,67 @@ $("#rAdd").onclick=()=>{
   if(room===""){msg.textContent="Bitte wähle ein Zimmer.";return}
   const r=+room;
   if(people.filter(p=>p.room===r).length>=MAX){msg.textContent="Dieses Zimmer ist voll (max. 6).";return}
+  if(REMOTE){
+    $("#rAdd").disabled=true;
+    try{
+      const d=await post({action:"add",name,age,sex,room:r});
+      if(d.ok){people=d.people;rooms();$("#rName").value="";$("#rAge").value="";msg.textContent="✅ "+name+" ist in "+ROOMS[r]+" eingetragen."}
+      else if(d.error==="full"){msg.textContent="Dieses Zimmer ist inzwischen voll (max. 6).";load()}
+      else msg.textContent="Die Eintragung hat nicht geklappt."
+    }catch(_){msg.textContent="Keine Verbindung. Bitte später erneut versuchen."}
+    $("#rAdd").disabled=false;return;
+  }
   people.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,age,sex,room:r});
   save();rooms();
   $("#rName").value="";$("#rAge").value="";
   msg.textContent="✅ "+name+" ist in "+ROOMS[r]+" eingetragen. Tippe auf „Per WhatsApp senden“, damit Harry und Thomas es erfahren.";
 };
-$("#rList").onclick=e=>{const b=e.target.closest("[data-del]");if(!b)return;const p=people.find(x=>x.id===b.dataset.del);if(p&&confirm(p.name+" aus "+ROOMS[p.room]+" entfernen?")){people=people.filter(x=>x!==p);save();rooms()}};
+$("#rList").onclick=async e=>{
+  const b=e.target.closest("[data-del]");if(!b)return;
+  const p=people.find(x=>x.id===b.dataset.del);if(!p)return;
+  if(REMOTE){
+    const pin=prompt("Admin-PIN eingeben, um "+p.name+" zu entfernen:");if(!pin)return;
+    try{const d=await post({action:"delete",id:p.id,pin});if(d.ok){people=d.people;rooms()}else $("#rMsg").textContent=d.error==="pin"?"Falsche PIN.":"Entfernen hat nicht geklappt."}catch(_){$("#rMsg").textContent="Keine Verbindung."}
+    return;
+  }
+  if(confirm(p.name+" aus "+ROOMS[p.room]+" entfernen?")){people=people.filter(x=>x!==p);save();rooms()}
+};
 function summary(){const t=ROOMS.map((r,i)=>{const ps=people.filter(p=>p.room===i);return ps.length?r+":\n"+ps.map(p=>"- "+p.name+", "+p.age+" J., "+(p.sex==="m"?"Mädchen":"Junge")).join("\n"):""}).filter(Boolean).join("\n");return "Gemeindefreizeit 2027, Bettenliste\n"+(t||"Noch keine Eintragungen.")}
 $("#rWa").onclick=()=>{if(!people.length){$("#rMsg").textContent="Es ist noch nichts eingetragen.";return}open("https://wa.me/?text="+encodeURIComponent(summary()),"_blank","noopener")};
 $("#rCopy").onclick=async()=>{try{await navigator.clipboard.writeText(summary());$("#rMsg").textContent="Liste kopiert."}catch(_){$("#rMsg").textContent="Kopieren ist hier nicht möglich."}};
-rooms();
+rooms();load();
+if(REMOTE){setInterval(load,30000);document.addEventListener("visibilitychange",()=>{if(!document.hidden)load()})}
+const NC_UP="https://cloud.bethel-detmold.de/s/ZMs32zZ66EnsJEw",NC_VIEW="";   // Nextcloud: Link zum Hochladen (Datei ablegen) und Link zum Ansehen (nur lesen)
+let photos=[],cur=0;
+const thumb=(id,w)=>"https://drive.google.com/thumbnail?id="+encodeURIComponent(id)+"&sz=w"+w;
+function gallery(){
+  $("#pGal").innerHTML=photos.length?photos.map((p,i)=>`<img src="${thumb(p.id,400)}" data-i="${i}" loading="lazy" referrerpolicy="no-referrer" alt="Foto ${i+1}">`).join(""):'<p class="free" style="grid-column:1/-1">Noch keine Fotos.</p>';
+}
+async function loadPhotos(){
+  if(NC_UP)return;
+  if(!REMOTE){$("#pMsg").textContent="Der Foto-Upload ist verfügbar, sobald der Server eingerichtet ist.";return}
+  try{const d=await (await fetch(API+"?action=photos")).json();if(d.ok){photos=d.photos;gallery()}}catch(_){$("#pMsg").textContent="Keine Verbindung zum Server."}
+}
+function shrink(f){return new Promise((res,rej)=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const k=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext("2d").drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL("image/jpeg",.82).split(",")[1])};im.onerror=()=>{URL.revokeObjectURL(u);rej()};im.src=u})}
+$("#pBtn").onclick=()=>{if(NC_UP){open(NC_UP,"_blank","noopener");return}if(!REMOTE){$("#pMsg").textContent="Der Foto-Upload ist verfügbar, sobald der Server eingerichtet ist.";return}$("#pFile").click()};
+$("#pFile").onchange=async e=>{
+  const fs=[...e.target.files];if(!fs.length)return;
+  const msg=$("#pMsg");$("#pBtn").disabled=true;let ok=0;
+  for(let i=0;i<fs.length;i++){
+    msg.textContent="Lade Foto "+(i+1)+" von "+fs.length+" hoch …";
+    try{const d=await post({action:"photo",data:await shrink(fs[i])});if(d.ok){photos=d.photos;ok++}}catch(_){}
+  }
+  gallery();$("#pBtn").disabled=false;e.target.value="";
+  msg.textContent=ok===fs.length?"✅ "+ok+(ok>1?" Fotos":" Foto")+" hochgeladen.":"Hochgeladen: "+ok+" von "+fs.length+". Bitte versuche die übrigen noch einmal.";
+};
+function show(i){cur=(i+photos.length)%photos.length;const p=photos[cur];$("#lbImg").src=thumb(p.id,1600);$("#lbOpen").href="https://drive.google.com/uc?export=download&id="+encodeURIComponent(p.id);$("#lb").classList.add("on")}
+$("#pGal").onclick=e=>{const i=e.target.closest("img");if(i)show(+i.dataset.i)};
+$("#lbX").onclick=()=>$("#lb").classList.remove("on");
+$("#lbPrev").onclick=()=>show(cur-1);$("#lbNext").onclick=()=>show(cur+1);
+$("#lbDel").onclick=async()=>{const pin=prompt("Admin-PIN eingeben, um dieses Foto zu entfernen:");if(!pin)return;try{const d=await post({action:"photo-delete",id:photos[cur].id,pin});if(d.ok){photos=d.photos;gallery();$("#lb").classList.remove("on")}else alert(d.error==="pin"?"Falsche PIN.":"Entfernen hat nicht geklappt.")}catch(_){alert("Keine Verbindung.")}};
+document.querySelector('nav button[data-t="photo"]').addEventListener("click",loadPhotos);
+gallery();
+if(NC_UP){$("#pGal").hidden=true;$("#pMsg").textContent="Die Fotos werden in unserer Nextcloud gespeichert.";if(NC_VIEW){$("#pView").hidden=false;$("#pView").onclick=()=>open(NC_VIEW,"_blank","noopener")}}
 document.querySelector("nav").onclick=e=>{
   const b=e.target.closest("button");if(!b)return;
   document.querySelectorAll("nav button").forEach(x=>x.removeAttribute("aria-current"));
