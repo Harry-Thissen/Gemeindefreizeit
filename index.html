@@ -78,6 +78,7 @@ a{color:var(--acc)}
 .day[aria-pressed="true"].today::after{background:var(--on-acc)}
 .dh{margin:18px 0 4px;font-size:17px}
 .dh small{font-weight:400;color:var(--mute);font-size:14px}
+.wxrow{display:flex;gap:6px;overflow-x:auto;padding:4px 0 2px;scrollbar-width:none}.wxrow::-webkit-scrollbar{display:none}.wxc{flex:0 0 58px;text-align:center;border:1px solid var(--line);border-radius:14px;padding:8px 2px;background:var(--bg)}.wxc span{display:block;font-size:12px;color:var(--mute)}.wxc i{display:block;font-style:normal;font-size:22px;line-height:1.3}.wxc b{display:block;font-size:14px}.wxc small{display:block;font-size:12px;color:var(--mute)}
 .wx{display:inline-block;margin-left:6px;padding:2px 10px;border-radius:99px;background:var(--card);border:1px solid var(--line);font-size:13px;font-weight:400;color:var(--ink)}
 .ev{display:flex;gap:14px;align-items:flex-start}
 .ev time{flex:0 0 70px;white-space:nowrap;font-weight:700;color:var(--acc2);font-variant-numeric:tabular-nums}
@@ -167,6 +168,11 @@ dialog h3{font-size:18px}dialog p{margin:8px 0;color:var(--mute)}
 
 <section id="s-prog" role="tabpanel" aria-labelledby="t-prog">
   <h2>Programm</h2>
+  <div class="card" id="wxCard">
+    <h3>🌦️ Wetter in Flachau</h3>
+    <p class="note" id="wxSrc" style="margin-top:2px"></p>
+    <div class="wxrow" id="wxRow"></div>
+  </div>
   <div class="days" id="days" role="group" aria-label="Tag auswählen"></div>
   <div id="events" aria-live="polite"></div>
   <div id="week"></div>
@@ -174,15 +180,20 @@ dialog h3{font-size:18px}dialog p{margin:8px 0;color:var(--mute)}
     <button class="btn alt" id="wkBtn" aria-pressed="false">📋 Ganze Woche zeigen</button>
     <button class="btn alt" id="prBtn">🖨️ Drucken</button>
   </div>
-  <details class="more">
-    <summary>📅 In meinen Kalender übernehmen</summary>
-    <p>Wähle, was in deinen Kalender soll:</p>
-    <div class="btns" style="margin-top:0">
-      <button class="btn alt" id="icsRange">Nur den Zeitraum</button>
-      <button class="btn alt" id="icsAll">Alle Programmpunkte mit Uhrzeit</button>
-    </div>
-    <p class="note">Die Datei öffnest du nach dem Herunterladen mit deiner Kalender-App. Programmpunkte ohne feste Uhrzeit sind nicht enthalten.</p>
-  </details>
+  <div class="card noprint" id="calCard">
+    <h3>📅 Mit meinem Kalender verbinden</h3>
+    <p class="note" style="margin-top:2px">Abonniere das Programm, dann erscheint es in deinem Kalender und Änderungen kommen automatisch an (kann bis zu einem Tag dauern).</p>
+    <a class="btn" id="calGoogle" target="_blank" rel="noopener">Im Google Kalender abonnieren</a>
+    <a class="btn alt" id="calWeb">Andere Kalender-App (Apple, Outlook …)</a>
+    <details class="more" style="margin-top:10px">
+      <summary>Stattdessen einmalig herunterladen</summary>
+      <div class="btns" style="margin-top:0">
+        <button class="btn alt" id="icsRange">Nur den Zeitraum</button>
+        <button class="btn alt" id="icsAll">Alle Programmpunkte</button>
+      </div>
+      <p class="note">Die Datei öffnest du mit deiner Kalender-App. Programmpunkte ohne feste Uhrzeit sind nicht enthalten.</p>
+    </details>
+  </div>
   <p class="note">Alle Angaben ohne Gewähr, Zeiten können spontan angepasst werden.</p>
 </section>
 
@@ -425,8 +436,14 @@ function renderStatus(){
 }
 
 /* ---------- Programm ---------- */
-let sel=0,WX={};
-const wxBadge=i=>{const w=WX[isoKey(dayDate(i))];return w?`<span class="wx" title="Wettervorhersage Flachau">${w.ic} ${w.max}°/${w.min}° · ${w.rain}% Regen</span>`:""};
+let sel=0,WX={},CLI={};
+const wxOf=i=>{const w=WX[isoKey(dayDate(i))];if(w)return{ic:w.ic,max:w.max,min:w.min,rain:w.rain,f:1};const c=CLI[i];return c?{ic:c.ic,max:c.max,min:c.min,rain:c.rain,f:0}:null};
+const wxBadge=i=>{const w=wxOf(i);return w?(w.f?`<span class="wx" title="Wettervorhersage Flachau">${w.ic} ${w.max}°/${w.min}° · ${w.rain}% Regen</span>`:`<span class="wx" title="Durchschnitt der letzten fünf Jahre an diesem Tag">Ø ${w.ic} ${w.max}°/${w.min}° · ${w.rain}% Regentage</span>`):""};
+function renderWx(){
+  const any=PROGRAM.some((_,i)=>wxOf(i)),fc=PROGRAM.some((_,i)=>{const w=wxOf(i);return w&&w.f});
+  $("#wxSrc").textContent=!any?(navigator.onLine?"Wetterdaten werden geladen …":"Wetterdaten sind offline nicht verfügbar."):fc?"Vorhersage für jeden Tag der Freizeit (Open-Meteo).":"Noch keine Vorhersage. Gezeigt wird das typische Wetter an diesen Tagen (Durchschnitt der letzten fünf Jahre). Die echte Vorhersage erscheint ab etwa zwei Wochen vorher.";
+  $("#wxRow").innerHTML=PROGRAM.map((_,i)=>{const d=dayDate(i),w=wxOf(i);return `<div class="wxc"><span>${WD[d.getDay()]} ${d.getDate()}.</span>${w?`<i aria-hidden="true">${w.ic}</i><b>${w.max}°</b><small>${w.min}°</small><small>${w.rain}%</small>`:'<i aria-hidden="true">·</i>'}</div>`}).join("");
+}
 const evHTML=(i,hl)=>PROGRAM[i].map((e,k)=>`<div class="card ev${hl===k?" next":""}"><time>${esc(e[0]||"·")}</time><div><h3>${esc(e[1])}${hl===k?'<span class="tag">Als Nächstes</span>':""}</h3>${e[2]?`<p>${esc(e[2])}</p>`:""}</div></div>`).join("");
 function renderProg(){
   const p=phase();
@@ -434,6 +451,7 @@ function renderProg(){
     return `<button class="day${t?" today":""}" data-i="${i}" aria-pressed="${i===sel}" aria-label="${esc(fmt(d))}${t?", heute":""}"><span>${WD[d.getDay()]}</span><b>${d.getDate()}</b></button>`}).join("");
   const hl=p.state==="during"&&p.idx===sel?nextEv(sel,p.n):-1;
   $("#events").innerHTML=`<p class="dh" style="margin-top:4px"><b>${esc(fmt(dayDate(sel)))}</b>${wxBadge(sel)}</p>`+evHTML(sel,hl);
+  renderWx();
   $("#week").innerHTML=PROGRAM.map((_,i)=>`<h3 class="dh">${esc(fmt(dayDate(i)))}${wxBadge(i)}</h3>`+evHTML(i,-1)).join("");
 }
 $("#days").onclick=e=>{const b=e.target.closest(".day");if(b){sel=+b.dataset.i;renderProg();const a=$("#days .day[aria-pressed=true]");if(a)a.focus({preventScroll:true})}};
@@ -446,9 +464,23 @@ $("#prBtn").onclick=()=>print();
 
 /* ---------- Wetter (Open-Meteo, nur kurz vor und während der Freizeit) ---------- */
 const WMO=c=>c===0?"☀️":c<=2?"🌤️":c===3?"☁️":c<=48?"🌫️":c<=57?"🌦️":c<=67?"🌧️":c<=77?"🌨️":c<=82?"🌦️":c<=86?"🌨️":"⛈️";
+const rainIc=r=>r<25?"🌤️":r<50?"🌦️":"🌧️";
+async function climate(){
+  const c=store.get("fz_cli1",null);if(c&&c.v===1){CLI=c.d;return}
+  const y=new Date().getFullYear(),ys=[1,2,3,4,5].map(k=>y-k),a=dayDate(0),b=dayDate(MOD-1);
+  const rs=await Promise.all(ys.map(async yy=>{
+    const f=d=>(yy)+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+    const r=await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${CFG.lat}&longitude=${CFG.lon}&start_date=${f(a)}&end_date=${f(b)}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Europe%2FBerlin`);
+    if(!r.ok)throw 0;return (await r.json()).daily}));
+  const out={};
+  for(let i=0;i<MOD;i++){let mx=0,mn=0,rn=0,n=0;rs.forEach(d=>{if(d&&d.temperature_2m_max&&d.temperature_2m_max[i]!=null){mx+=d.temperature_2m_max[i];mn+=d.temperature_2m_min[i];rn+=(d.precipitation_sum[i]||0)>=1?1:0;n++}});
+    if(n){const r=Math.round(rn/n*100);out[i]={max:Math.round(mx/n),min:Math.round(mn/n),rain:r,ic:rainIc(r)}}}
+  CLI=out;store.set("fz_cli1",{v:1,d:out});
+}
 async function weather(){
-  const n=new Date();
-  if(CFG.start-n>15*864e5||n-CFG.end>864e5||!navigator.onLine)return;
+  const n=new Date();if(!navigator.onLine||n-CFG.end>864e5)return;
+  try{await climate();renderProg()}catch(_){}
+  if(CFG.start-n>15*864e5)return;
   try{
     const u=`https://api.open-meteo.com/v1/forecast?latitude=${CFG.lat}&longitude=${CFG.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=16`;
     const r=await fetch(u);if(!r.ok)return;const d=(await r.json()).daily;if(!d||!d.time)return;
@@ -469,15 +501,15 @@ function ics(events){
   L.push("END:VCALENDAR");return L.map(fold).join("\r\n")+"\r\n";
 }
 function dl(name,text){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/calendar;charset=utf-8"}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);toast("Kalenderdatei wird heruntergeladen")}
-$("#icsRange").onclick=()=>{
-  const end=dayDate(MOD);
-  dl("gemeindefreizeit-2027.ics",ics([{uid:"zeitraum",sum:"Gemeindefreizeit 2027",lines:["DTSTART;VALUE=DATE:"+ymd(dayDate(0)),"DTEND;VALUE=DATE:"+ymd(end),"DESCRIPTION:"+icsEsc("Programm und Infos: "+CFG.site)]}]));
-};
-$("#icsAll").onclick=()=>{
-  const ev=[];PROGRAM.forEach((day,i)=>day.forEach((e,k)=>{const t=tm(e[0]);if(t===null)return;
-    ev.push({uid:"d"+i+"-"+k,sum:e[1],lines:["DTSTART:"+utc(dayDate(i),t),"DTEND:"+utc(dayDate(i),t+60),"DESCRIPTION:"+icsEsc((e[2]?e[2]+"\n":"")+"Alle Angaben ohne Gewähr.")]})}));
-  dl("gemeindefreizeit-2027-programm.ics",ics(ev));
-};
+const rangeEv=()=>[{uid:"zeitraum",sum:"Gemeindefreizeit 2027",lines:["DTSTART;VALUE=DATE:"+ymd(dayDate(0)),"DTEND;VALUE=DATE:"+ymd(dayDate(MOD)),"DESCRIPTION:"+icsEsc("Programm und Infos: "+CFG.site)]}];
+const timedEv=()=>{const ev=[];PROGRAM.forEach((day,i)=>day.forEach((e,k)=>{const t=tm(e[0]);if(t===null)return;
+  ev.push({uid:"d"+i+"-"+k,sum:e[1],lines:["DTSTART:"+utc(dayDate(i),t),"DTEND:"+utc(dayDate(i),t+60),"DESCRIPTION:"+icsEsc((e[2]?e[2]+"\n":"")+"Alle Angaben ohne Gewähr.")]})}));return ev};
+const icsFeed=()=>ics(rangeEv().concat(timedEv()));
+$("#icsRange").onclick=()=>dl("gemeindefreizeit-2027.ics",ics(rangeEv()));
+$("#icsAll").onclick=()=>dl("gemeindefreizeit-2027-programm.ics",ics(timedEv()));
+{const feed=CFG.site.replace(/^https?:\/\//,"")+"programm.ics";
+ $("#calWeb").href="webcal://"+feed;
+ $("#calGoogle").href="https://calendar.google.com/calendar/r?cid="+encodeURIComponent("webcal://"+feed)}
 
 /* ---------- Installieren, Teilen, Offline ---------- */
 const standalone=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
@@ -644,7 +676,7 @@ $("#privacy").innerHTML=[
  REMOTE?"Zimmerliste: Name, Alter und Mädchen/Junge werden in einer Google-Tabelle gespeichert und sind für alle sichtbar, die diese App öffnen.":LINKMODE?"Zimmerliste: Die Angaben werden in der Nextcloud der Gemeinde gespeichert.":"Zimmerliste: Die Angaben bleiben nur auf deinem Gerät, bis du sie per WhatsApp sendest.",
  NC?"Fotos: Hochgeladene Fotos liegen in der Nextcloud (cloud.bethel-detmold.de).":REMOTE?"Fotos: Hochgeladene Fotos liegen in einem Google-Drive-Ordner und sind für alle mit dem Link sichtbar.":"Fotos: Der Foto-Upload ist noch nicht eingerichtet.",
  "Bitte nur Fotos hochladen, auf denen alle Abgebildeten einverstanden sind. Bei Kindern und Jugendlichen gilt das Einverständnis der Eltern.",
- "Wetter: Die Vorhersage wird kurz vor und während der Freizeit bei Open-Meteo.com abgerufen. Dabei wird deine IP-Adresse an diesen Dienst übertragen.",
+ "Wetter: Vorhersage und Durchschnittswerte werden bei Open-Meteo.com abgerufen. Dabei wird deine IP-Adresse an diesen Dienst übertragen.",
  "Auf deinem Gerät speichert die App deine Packliste und deine eigenen Zimmer-Einträge. Die App setzt keine Cookies und nutzt kein Tracking.",
  "Die Seite wird über GitHub Pages ausgeliefert. GitHub kann dabei technisch bedingt Zugriffsdaten wie die IP-Adresse verarbeiten."
 ].map(t=>"<li>"+esc(t)+"</li>").join("");
