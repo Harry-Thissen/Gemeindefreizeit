@@ -84,6 +84,7 @@ a{color:var(--acc)}
 .ev time{flex:0 0 70px;white-space:nowrap;font-weight:700;color:var(--acc2);font-variant-numeric:tabular-nums}
 .ev h3{font-size:16px}.ev p{margin:2px 0 0;color:var(--mute);font-size:14px}
 .ev.next{border:2px solid var(--acc)}
+.evb{width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}.more2{color:var(--acc)!important;font-weight:600}
 .tag{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--acc);color:var(--on-acc);font-size:12px;font-weight:700;vertical-align:middle}
 details.more{margin:6px 0}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -335,6 +336,13 @@ dialog h3{font-size:18px}dialog p{margin:8px 0;color:var(--mute)}
     </div>
   </form>
 </dialog>
+<dialog id="act" aria-labelledby="actT">
+  <h3 id="actT"></h3>
+  <p class="note" id="actWhen" style="margin-top:2px"></p>
+  <p id="actInfo" style="white-space:pre-wrap;color:var(--ink)"></p>
+  <div id="actBtns"></div>
+  <button class="btn alt" id="actX" type="button">Schließen</button>
+</dialog>
 <div id="toast" role="status" hidden></div>
 
 <script>
@@ -357,14 +365,25 @@ const CFG={
 };
 const PROGRAM=[
  [["ab 16:00","Ankunft",""],["18:00","Abendessen",""],["19:00","Eröffnung","Thomas N."],["22:00","Nachtruhe",""]],
- [["","Gedanken + Gebet","Tobias Hildebrandt"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen","Uhrzeit noch nicht sicher"],["Nachm.","Spiel","Marc Reger, Andras Unruh, Joel Adrian"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
- [["","Gedanken + Gebet","Jakob Reger"],["09:00","Frühstück",""],["10:00","Versammlung","Mit gemeinsamem Bild"],["12:00","Mittagessen",""],["ab 13:30","Gemeinsames Spiel für ALLE","Adina Kochanke (?), Helene Adrian, Janes Fröse, Esther Unruh, Philipp Hildebrandt, Andreas Enns"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
- [["","Gedanken + Gebet","Evgeni Adrian"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","Flori’s Erlebnispfad",""],["ab 14:00","Volleyball Männer","M. Enns, Anton Reger"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
- [["","Gedanken + Gebet","Nikolai Unruh"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","Lichtensteinklamm",""],["ab 14:00","Spiel","Laura Fröse, Dorotha Freistadt, Oksana Winschu"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
- [["","Gedanken + Gebet","Valeri Fröse"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","„Lucky Flitzer“ Freizeitpark",""],["ab 14:00","Frauen-Volleyball","Maria Thissen, Angelina Hildebrandt"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
- [["","Gedanken + Gebet","Maxim Freistadt"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","Gemeinsame Bergwanderung","Nathan Fröse, Enrico Thissen"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
+ [["","Gedanken + Gebet","Tobias Hildebrandt"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen","Uhrzeit noch nicht sicher"],["Nachm.","Spiel","Marc Reger, Andras Unruh, Joel Adrian","spiel"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
+ [["","Gedanken + Gebet","Jakob Reger"],["09:00","Frühstück",""],["10:00","Versammlung","Mit gemeinsamem Bild"],["12:00","Mittagessen",""],["ab 13:30","Gemeinsames Spiel für ALLE","Adina Kochanke (?), Helene Adrian, Janes Fröse, Esther Unruh, Philipp Hildebrandt, Andreas Enns","spiel"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
+ [["","Gedanken + Gebet","Evgeni Adrian"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","Flori’s Erlebnispfad","","flori"],["ab 14:00","Volleyball Männer","M. Enns, Anton Reger","volley"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
+ [["","Gedanken + Gebet","Nikolai Unruh"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","Lichtensteinklamm","","klamm"],["ab 14:00","Spiel","Laura Fröse, Dorotha Freistadt, Oksana Winschu","spiel"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
+ [["","Gedanken + Gebet","Valeri Fröse"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","„Lucky Flitzer“ Freizeitpark","","lucky"],["ab 14:00","Frauen-Volleyball","Maria Thissen, Angelina Hildebrandt","volley"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
+ [["","Gedanken + Gebet","Maxim Freistadt"],["09:00","Frühstück",""],["10:00","Versammlung",""],["12:00","Mittagessen",""],["ab 14:00","Gemeinsame Bergwanderung","Nathan Fröse, Enrico Thissen","berg"],["18:00","Abendessen",""],["19:00","Versammlung",""],["22:00","Nachtruhe",""]],
  [["","Gedanken + Gebet","Dima Bajarow"],["09:00","Frühstück",""],["10:00","Abschluss mit Gebet",""]]
 ];
+/* Ausflüge und Aktivitäten: Hier kannst du Infos eintragen.
+   info = freier Text (Zeilenumbruch mit \n), map = Suchbegriff für Google Maps (leer = Unterkunft),
+   link = Webseite mit mehr Infos (leer = kein Button). Zum Ausblenden von „Maps“: map:"-" */
+const ACT={
+ flori:{t:"Flori’s Erlebnispfad",map:"Flori's Erlebnispfad, Flachau, Österreich",info:"",link:"https://www.wanderdoerfer.at/salzburg/ausflugsziel/flori-s-erlebnispfad/"},
+ klamm:{t:"Liechtensteinklamm",map:"Liechtensteinklamm, St. Johann im Pongau, Österreich",info:"",link:"https://www.salzburg.info/de/reiseinfos/salzburg-a-z/liechtensteinklamm_az_236463"},
+ lucky:{t:"Lucky Flitzer und Freizeitpark",map:"Lucky Flitzer, Flachau, Österreich",info:"",link:"https://www.wanderdoerfer.at/salzburg/ausflugsziel/lucky-flitzer-alpen-achterbahn/"},
+ berg:{t:"Gemeinsame Bergwanderung",map:"-",info:"Treffpunkt und Ziel werden noch bekannt gegeben.",link:""},
+ volley:{t:"Volleyball",map:"",info:"",link:""},
+ spiel:{t:"Spiel",map:"",info:"",link:""}
+};
 const PACK=["Bettwäsche / Schlafsack","Handtücher & Waschzeug","Bibel & Notizbuch","Bequeme Kleidung","Wanderschuhe & kleiner Rucksack","Regenjacke","Sonnencreme & Kappe","Sportzeug & Badesachen","Trinkflasche","Personalausweis / Reisepass","Krankenversicherungskarte","Persönliche Medikamente","Gesellschaftsspiele"];
 const PLACE=CFG.place+", "+CFG.address;
 const MAP_URL="https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(PLACE);
@@ -444,7 +463,8 @@ function renderWx(){
   $("#wxSrc").textContent=!any?(navigator.onLine?"Wetterdaten werden geladen …":"Wetterdaten sind offline nicht verfügbar."):fc?"Vorhersage für jeden Tag der Freizeit (Open-Meteo).":"Noch keine Vorhersage. Gezeigt wird das typische Wetter an diesen Tagen (Durchschnitt der letzten fünf Jahre). Die echte Vorhersage erscheint ab etwa zwei Wochen vorher.";
   $("#wxRow").innerHTML=PROGRAM.map((_,i)=>{const d=dayDate(i),w=wxOf(i);return `<div class="wxc"><span>${WD[d.getDay()]} ${d.getDate()}.</span>${w?`<i aria-hidden="true">${w.ic}</i><b>${w.max}°</b><small>${w.min}°</small><small>${w.rain}%</small>`:'<i aria-hidden="true">·</i>'}</div>`}).join("");
 }
-const evHTML=(i,hl)=>PROGRAM[i].map((e,k)=>`<div class="card ev${hl===k?" next":""}"><time>${esc(e[0]||"·")}</time><div><h3>${esc(e[1])}${hl===k?'<span class="tag">Als Nächstes</span>':""}</h3>${e[2]?`<p>${esc(e[2])}</p>`:""}</div></div>`).join("");
+const evHTML=(i,hl)=>PROGRAM[i].map((e,k)=>{const a=e[3]&&ACT[e[3]],open=a?`<button class="card ev evb${hl===k?" next":""}" data-a="${e[3]}" data-i="${i}" data-k="${k}" aria-haspopup="dialog">`:`<div class="card ev${hl===k?" next":""}">`;
+ return open+`<time>${esc(e[0]||"·")}</time><div><h3>${esc(e[1])}${hl===k?'<span class="tag">Als Nächstes</span>':""}</h3>${e[2]?`<p>${esc(e[2])}</p>`:""}${a?'<p class="more2">Details und Karte ›</p>':""}</div>${a?"</button>":"</div>"}`}).join("");
 function renderProg(){
   const p=phase();
   $("#days").innerHTML=PROGRAM.map((_,i)=>{const d=dayDate(i),t=p.state==="during"&&p.idx===i;
@@ -454,6 +474,20 @@ function renderProg(){
   renderWx();
   $("#week").innerHTML=PROGRAM.map((_,i)=>`<h3 class="dh">${esc(fmt(dayDate(i)))}${wxBadge(i)}</h3>`+evHTML(i,-1)).join("");
 }
+function openAct(key,i,k){
+  const a=ACT[key],e=PROGRAM[i][k],d=$("#act");
+  $("#actT").textContent=a.t||e[1];
+  $("#actWhen").textContent=fmt(dayDate(i))+(e[0]?" · "+e[0]:"")+(e[2]?" · "+e[2]:"");
+  $("#actInfo").textContent=a.info||"Infos folgen.";
+  const q=a.map===""||a.map==null?PLACE:a.map,h=[];
+  if(a.map!=="-"){h.push(`<a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener">📍 In Google Maps öffnen</a>`,`<a class="btn alt" href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(q)}" target="_blank" rel="noopener">🧭 Route planen</a>`)}
+  if(a.link)h.push(`<a class="btn alt" href="${esc(a.link)}" target="_blank" rel="noopener">🌐 Mehr Infos (externe Seite)</a>`);
+  $("#actBtns").innerHTML=h.join("");
+  d.showModal?d.showModal():d.setAttribute("open","");
+}
+$("#actX").onclick=()=>$("#act").close();
+$("#act").addEventListener("click",e=>{if(e.target.id==="act")$("#act").close()});
+document.addEventListener("click",e=>{const b=e.target.closest(".evb");if(b)openAct(b.dataset.a,+b.dataset.i,+b.dataset.k)});
 $("#days").onclick=e=>{const b=e.target.closest(".day");if(b){sel=+b.dataset.i;renderProg();const a=$("#days .day[aria-pressed=true]");if(a)a.focus({preventScroll:true})}};
 $("#wkBtn").onclick=function(){
   const on=$("#week").style.display!=="block";
