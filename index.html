@@ -134,6 +134,7 @@ details ul{padding-left:20px}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);z-index:20;padding:4px 6px calc(4px + env(safe-area-inset-bottom))}
 nav [role=tablist]{display:flex;max-width:640px;margin:0 auto}
 nav button{flex:1;min-height:56px;border:0;background:none;color:var(--mute);font:inherit;font-size:12px;padding:4px 0;cursor:pointer;border-radius:12px}
+nav button{position:relative}nav button.dot::after{content:"";position:absolute;top:6px;left:calc(50% + 8px);width:10px;height:10px;border-radius:50%;background:var(--acc)}
 nav button i{display:block;font-style:normal;font-size:22px;line-height:1.2}
 nav button[aria-selected="true"]{color:var(--acc);font-weight:700}
 dialog{border:1px solid var(--line);border-radius:18px;background:var(--card);color:var(--ink);padding:18px;width:min(92vw,360px)}
@@ -200,6 +201,17 @@ dialog h3{font-size:18px}dialog p{margin:8px 0;color:var(--mute)}
 
 <section id="s-info" role="tabpanel" aria-labelledby="t-info" hidden>
   <h2>Infos</h2>
+  <div class="card" id="noticeCard">
+    <h3>📢 Mitteilungen von Harry &amp; Thomas</h3>
+    <p id="noticeTxt" style="white-space:pre-wrap;margin:8px 0 4px"></p>
+    <p class="note" id="noticeMeta" style="margin-top:0"></p>
+    <button class="btn alt" id="noticeEdit" hidden>✏️ Bearbeiten</button>
+    <div id="noticeForm" hidden>
+      <label class="lbl" for="noticeIn">Text für alle Teilnehmer</label>
+      <textarea class="field" id="noticeIn" rows="7" maxlength="2000"></textarea>
+      <div class="btns"><button class="btn alt" id="noticeCancel" type="button">Abbrechen</button><button class="btn" id="noticeSave" type="button">Speichern</button></div>
+    </div>
+  </div>
   <div class="card" id="inst" hidden>
     <h3>📲 Als App installieren</h3>
     <p class="note" id="instTxt">Öffne das Browser-Menü (⋮) und tippe auf „App installieren“ oder „Zum Startbildschirm hinzufügen“.</p>
@@ -361,6 +373,7 @@ const CFG={
   api:"",                              // Google-Apps-Script-Adresse (endet auf /exec), optional
   ncUpload:"https://cloud.bethel-detmold.de/s/ZMs32zZ66EnsJEw",  // Nextcloud „Datei ablegen“
   ncView:"",                           // Nextcloud „Nur lesen“ (Fotos ansehen)
+  notice:"",                           // Mitteilung, falls keine Google-Tabelle genutzt wird
   roomForm:"",roomView:""              // Nextcloud-Formular/Tabelle für Zimmer, optional
 };
 const PROGRAM=[
@@ -375,11 +388,11 @@ const PROGRAM=[
 ];
 /* Ausflüge und Aktivitäten: Hier kannst du Infos eintragen.
    info = freier Text (Zeilenumbruch mit \n), map = Suchbegriff für Google Maps (leer = Unterkunft),
-   link = Webseite mit mehr Infos (leer = kein Button). Zum Ausblenden von „Maps“: map:"-" */
+   link = optional Webseite (leer = kein Button). Zum Ausblenden von „Maps“: map:"-" */
 const ACT={
- flori:{t:"Flori’s Erlebnispfad",map:"Flori's Erlebnispfad, Flachau, Österreich",info:"",link:"https://www.wanderdoerfer.at/salzburg/ausflugsziel/flori-s-erlebnispfad/"},
- klamm:{t:"Liechtensteinklamm",map:"Liechtensteinklamm, St. Johann im Pongau, Österreich",info:"",link:"https://www.salzburg.info/de/reiseinfos/salzburg-a-z/liechtensteinklamm_az_236463"},
- lucky:{t:"Lucky Flitzer und Freizeitpark",map:"Lucky Flitzer, Flachau, Österreich",info:"",link:"https://www.wanderdoerfer.at/salzburg/ausflugsziel/lucky-flitzer-alpen-achterbahn/"},
+ flori:{t:"Flori’s Erlebnispfad",map:"Flori's Erlebnispfad, Flachau, Österreich",info:"",link:""},
+ klamm:{t:"Liechtensteinklamm",map:"Liechtensteinklamm, St. Johann im Pongau, Österreich",info:"",link:""},
+ lucky:{t:"Lucky Flitzer und Freizeitpark",map:"Lucky Flitzer, Flachau, Österreich",info:"",link:""},
  berg:{t:"Gemeinsame Bergwanderung",map:"-",info:"Treffpunkt und Ziel werden noch bekannt gegeben.",link:""},
  volley:{t:"Volleyball",map:"",info:"",link:""},
  spiel:{t:"Spiel",map:"",info:"",link:""}
@@ -594,6 +607,28 @@ async function call(method,body,ms){
   }finally{clearTimeout(t)}
 }
 
+/* ---------- Mitteilung ---------- */
+let notice=REMOTE?store.get("fz_notice",{text:"",t:0}):{text:CFG.notice||"",t:0},adminPin=null;
+function renderNotice(){
+  $("#noticeTxt").textContent=notice.text||"Noch keine Mitteilungen.";
+  $("#noticeMeta").textContent=notice.t?"Zuletzt geändert: "+new Date(notice.t).toLocaleString("de-DE",{day:"numeric",month:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+  $("#noticeEdit").hidden=!REMOTE||!$("#noticeForm").hidden;
+  $("#t-info").classList.toggle("dot",!!notice.t&&notice.t>store.get("fz_seen",0)&&tab!=="info");
+}
+$("#noticeEdit").onclick=async()=>{
+  if(!adminPin){const p=await ask("Admin-PIN eingeben","Nur Harry und Thomas können die Mitteilung ändern.",{pin:true,ok:"Weiter"});if(!p)return;adminPin=p}
+  $("#noticeIn").value=notice.text||"";$("#noticeForm").hidden=false;$("#noticeEdit").hidden=true;$("#noticeIn").focus();
+};
+$("#noticeCancel").onclick=()=>{$("#noticeForm").hidden=true;renderNotice()};
+$("#noticeSave").onclick=async()=>{
+  const b=$("#noticeSave");b.disabled=true;
+  try{const d=await call("POST",{action:"notice",pin:adminPin,text:$("#noticeIn").value});
+    if(d.ok){notice=d.notice;store.set("fz_notice",notice);store.set("fz_seen",notice.t||0);$("#noticeForm").hidden=true;renderNotice();toast("Gespeichert, alle sehen die Mitteilung")}
+    else{if(d.error==="pin"){adminPin=null;$("#noticeForm").hidden=true;renderNotice();toast("Falsche PIN.")}else toast("Speichern hat nicht geklappt.")}
+  }catch(_){toast("Keine Verbindung. Bitte später noch einmal versuchen.")}
+  b.disabled=false;
+};
+
 /* ---------- Zimmer ---------- */
 const ROOMS=Array.from({length:CFG.rooms},(_,i)=>"Zimmer "+(i+1)),MAX=CFG.max;
 let people=REMOTE?[]:store.get("fz_beds",[]),sex="",mine=store.get("fz_mine",{});
@@ -621,7 +656,7 @@ function renderRooms(){
 }
 async function load(){
   if(!REMOTE)return;
-  try{const d=await call("GET","");if(d.ok){people=d.people;renderRooms();$("#rNote").dataset.t=Date.now();$("#rSum").textContent+=" · Stand "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}}
+  try{const d=await call("GET","");if(d.ok){if(d.notice){notice=d.notice;store.set("fz_notice",notice);renderNotice()}people=d.people;renderRooms();$("#rNote").dataset.t=Date.now();$("#rSum").textContent+=" · Stand "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})}}
   catch(_){$("#rSum").textContent="Keine Verbindung zum Server. Angezeigt wird der letzte Stand."}
 }
 const pick=v=>{sex=v;$("#sexF").setAttribute("aria-pressed",v==="f");$("#sexM").setAttribute("aria-pressed",v==="m")};
@@ -723,7 +758,8 @@ function go(t,keep){
   if(!TABS.includes(t))t="prog";tab=t;
   TABS.forEach(x=>{const on=x===t,b=$("#t-"+x);b.setAttribute("aria-selected",on);b.tabIndex=on?0:-1;$("#s-"+x).hidden=!on});
   if(!keep){try{history.replaceState(null,"","#"+HASH[t])}catch(_){}scrollTo(0,0)}
-  if(t==="photo")loadPhotos();if(t==="room")load();
+  if(t==="photo")loadPhotos();if(t==="room"||t==="info")load();
+  if(t==="info"){store.set("fz_seen",notice.t||0);renderNotice()}
 }
 $("#tabs").addEventListener("click",e=>{const b=e.target.closest("[role=tab]");if(b)go(b.dataset.t)});
 $("#tabs").addEventListener("keydown",e=>{const i=TABS.indexOf(tab);let n=null;if(e.key==="ArrowRight")n=(i+1)%TABS.length;if(e.key==="ArrowLeft")n=(i+TABS.length-1)%TABS.length;if(e.key==="Home")n=0;if(e.key==="End")n=TABS.length-1;if(n!==null){e.preventDefault();go(TABS[n]);$("#t-"+TABS[n]).focus()}});
@@ -733,7 +769,7 @@ addEventListener("hashchange",()=>go(fromHash(),true));
 /* ---------- Start ---------- */
 {const p=phase();if(p.state==="during")sel=p.idx}
 renderStatus();renderProg();setInterval(()=>{renderStatus();if(phase().state==="during")renderProg()},30000);
-go(fromHash(),true);weather();
+go(fromHash(),true);renderNotice();weather();
 </script>
 </body>
 </html>
